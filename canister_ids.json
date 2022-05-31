@@ -1,0 +1,20 @@
+{
+  "icevent": {    
+    "ic" : "ukvuy-5aaaa-aaaaj-qabva-cai"
+  },
+  "backup": {
+    "ic" : "ixuio-siaaa-aaaam-qacxq-cai"
+  },
+  "treasury":{
+    "ic" : "gncpj-jyaaa-aaaan-qagta-cai"
+  },
+  "ledger": {
+    "ic" : "7qstd-hiaaa-aaaak-aariq-cai"
+  },
+  "ram" : {
+    "ic":  "pxu6k-jaaaa-aaaap-aaamq-cai"
+  },
+  "icevent_staging": {    
+    "ic" : "owctf-4qaaa-aaaak-qaahq-cai"
+  }
+}
