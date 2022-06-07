@@ -4,7 +4,7 @@ import Principal "mo:base/Principal";
 import List "mo:base/List";
 import AssocList "mo:base/AssocList";
 import Array "mo:base/Array";
-import Map "mo:base/HashMap";
+import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
 import Text "mo:base/Text";
 import Nat "mo:base/Nat";
@@ -28,38 +28,128 @@ import Types "Types";
 
 
 import TokenTypes "./TokenTypes";
+import EscrowTypes "./EscrowTypes";
 
 shared (install) actor class Ledger() = this {
 
 
-
   let ICET = "ot4zw-oaaaa-aaaag-qabaa-cai";
-
   let icet : TokenTypes.Self = actor "ot4zw-oaaaa-aaaag-qabaa-cai";
+  let escrow : EscrowTypes.Self = actor "oslfo-7iaaa-aaaag-qakra-cai";
 
+  let RESERVE_SUBACCOUNT = 1;
+  let PRIVATE_SALE_SUBACCOUNT = 2;
+  let PUBLIC_SALE_SUBACCOUNT = 3;
 
-  stable var _admins: [Text] = [
-    "zrbbd-7qzdb-xp7r4-v3du3-sulj4-7fwm2-3v3hr-vitzv-4nnsy-mzeab-aae",
-    "33cvj-3w7ku-d2k2n-nqueo-wkxpp-pmckv-rhyjh-jvn5t-fzw4x-xxwy6-qae"
-  ];
-  stable var _allows: [Text] = ["ukvuy-5aaaa-aaaaj-qabva-cai","owctf-4qaaa-aaaak-qaahq-cai"];
+  type WL = {
+    id: Principal;
+    amount: Nat;
+  };
   
+  stable var private_sale_whitelist_state: [(Principal,WL)] = [];
+  var private_sale_whitelist = HashMap.HashMap<Principal, WL>(0, Principal.equal, Principal.hash);
+
+  stable var private_sale_price = 10_000; 
+
+  stable var _admins: [Principal] = [];
+  var admins : List.List<Principal> = List.fromArray(_admins);
+
+  stable var _allows: [Principal] = [];
+  var allows : List.List<Principal> = List.fromArray(_allows);
+
   let e6s:Nat64 = 1_000_000;
 
   stable var FEE:Nat64 = 1_000;
 
   stable var default_page_size = 100; 
-  stable var nextSubAccount : Nat = 1;
+  stable var nextSubAccount : Nat = 10;
 
-    let _HttpHandler = Http.HttpHandler();
+  let _HttpHandler = Http.HttpHandler();
+
+  public shared({caller}) func addAdmin(admin: Principal): async Result.Result<Nat, Text>{
+    if(Principal.equal(caller, install.caller)){
+
+      admins := List.push(admin, admins);
+      #ok(1)
+    }else{
+      #err("no permission")
+    }
+  };
+  public shared({caller}) func addAllow(allow: Principal): async Result.Result<Nat, Text>{
+    if(Principal.equal(caller, install.caller)){
+
+      allows := List.push(allow, allows);
+      #ok(1)
+    }else{
+      #err("no permission")
+    }
+  };
+  //-------------------private sale--------------------------
+  public shared({caller}) func addWL(wl:WL): async Result.Result<Nat, Text>{
+    if(_isAdmin(caller)){
+        private_sale_whitelist.put(wl.id, wl);
+        #ok(1)
+    }else{
+      #err("no permission")
+    };
+    
+  };
+  public shared({caller}) func mint(): async Result.Result<Nat, Text>{
+     if(Principal.isAnonymous(caller)){
+       #err("no authenticated");
+     }else{
+       //check WL
+       let wl = private_sale_whitelist.get(caller);
+       switch(wl){
+         case(?wl){
+            //create escrow order
+            let order = {
+              memo="mint ICET";
+              seller = getPrincipal();
+              expiration = Time.now() + 1_000_000_000 * 3600 * 24 * 7;
+              currency = #ICP;
+              amount = Nat64.fromNat(wl.amount / private_sale_price);
+            };
+            await escrow.create(order);
+         };
+         case(_){
+           #err("not in whitelist")
+         };
+       }
+
+
+     }
+  };
+  
+  public shared({caller}) func distribute(orderid: Nat): async Result.Result<Nat, Text>{
+    //check deposit
+
+
+    //distribute
+
+
+    #ok(1)
+  };
+
+  public shared({caller}) func release(orderid: Nat) : async Result.Result<Nat, Text>{
+    #ok(1)
+  };
+
+  //---------------------public sale---------------------------
+
+
+
+  //---------------------data--------------------------------
+
+
 
   func getPrincipal () : Principal {
       return Principal.fromActor(this);
   };
 
-  func _isAdmin(user: Text) : Bool{
-    let fallow = Array.find<Text>(_admins, func(a){
-      a == user
+  func _isAdmin(user: Principal) : Bool{
+    let fallow = Array.find<Principal>(List.toArray(admins), func(a){
+      Principal.equal(a,user)
     });
     switch(fallow){
       case(?fallow){ true };
@@ -67,9 +157,9 @@ shared (install) actor class Ledger() = this {
     };
   };
 
-  func _isAllowed(caller: Text) : Bool{
-    let fallow = Array.find<Text>(_allows, func(p){
-      p == caller
+  func _isAllowed(caller: Principal) : Bool{
+    let fallow = Array.find<Principal>(List.toArray(allows), func(p){
+      Principal.equal(p,caller)
     });
     switch(fallow){
       case(?fallow){ return true; };
@@ -97,7 +187,8 @@ shared (install) actor class Ledger() = this {
   System methods
   **/
   system func preupgrade() {
-   
+    _admins := List.toArray(admins);
+    _allows := List.toArray(allows);
 
   };
 
