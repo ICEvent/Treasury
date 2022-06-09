@@ -49,7 +49,7 @@ shared (install) actor class Ledger() = this {
   stable var private_sale_whitelist_state: [(Principal,WL)] = [];
   var private_sale_whitelist = HashMap.HashMap<Principal, WL>(0, Principal.equal, Principal.hash);
 
-  stable var private_sale_price = 10_000; 
+  stable var private_sale_price = 0; //of ICP
 
   stable var _admins: [Principal] = [];
   var admins : List.List<Principal> = List.fromArray(_admins);
@@ -85,6 +85,10 @@ shared (install) actor class Ledger() = this {
     }
   };
   //-------------------private sale--------------------------
+  public shared({caller}) func setPrice(price: Nat): async (){
+    private_sale_price := price;
+  };
+
   public shared({caller}) func addWL(wl:WL): async Result.Result<Nat, Text>{
     if(_isAdmin(caller)){
         private_sale_whitelist.put(wl.id, wl);
@@ -94,32 +98,51 @@ shared (install) actor class Ledger() = this {
     };
     
   };
-  public shared({caller}) func mint(): async Result.Result<Nat, Text>{
-     if(Principal.isAnonymous(caller)){
-       #err("no authenticated");
-     }else{
-       //check WL
-       let wl = private_sale_whitelist.get(caller);
-       switch(wl){
-         case(?wl){
-            //create escrow order
-            let order = {
-              memo="mint ICET";
-              seller = getPrincipal();
-              expiration = Time.now() + 1_000_000_000 * 3600 * 24 * 7;
-              currency = #ICP;
-              amount = Nat64.fromNat(wl.amount / private_sale_price);
-            };
-            await escrow.create(order);
-         };
-         case(_){
-           #err("not in whitelist")
-         };
-       }
 
-
-     }
+  public query({caller}) func isEligible(): async ?{
+    amount: Nat;
+    price: Nat;
+  }{
+    let wl = private_sale_whitelist.get(caller);    
+    switch(wl){
+      case(?wl){
+        ?{
+          amount = wl.amount;
+          price= private_sale_price;
+        }
+      };
+      case(_){
+        null
+      };
+    };
   };
+
+  // public shared({caller}) func mint(): async Result.Result<Nat, Text>{
+  //    if(Principal.isAnonymous(caller)){
+  //      #err("no authenticated");
+  //    }else{
+  //      //check WL
+  //      let wl = private_sale_whitelist.get(caller);
+  //      switch(wl){
+  //        case(?wl){
+  //           //create escrow order
+  //           let order = {
+  //             memo="mint ICET";
+  //             seller = getPrincipal();
+  //             expiration = Time.now() + 1_000_000_000 * 3600 * 24 * 7;
+  //             currency = #ICP;
+  //             amount = Nat64.fromNat(wl.amount / private_sale_price);
+  //           };
+  //           await escrow.create(order);
+  //        };
+  //        case(_){
+  //          #err("not in whitelist")
+  //        };
+  //      }
+
+
+  //    }
+  // };
   
   public shared({caller}) func distribute(orderid: Nat): async Result.Result<Nat, Text>{
     //check deposit
@@ -190,10 +213,12 @@ shared (install) actor class Ledger() = this {
     _admins := List.toArray(admins);
     _allows := List.toArray(allows);
 
+    private_sale_whitelist_state := Iter.toArray(private_sale_whitelist.entries());  
+
   };
 
   system func postupgrade() {
-
+    private_sale_whitelist := HashMap.fromIter<Principal, WL>(private_sale_whitelist_state.vals(), 10, Principal.equal, Principal.hash);
   };
 
     
