@@ -21,6 +21,12 @@ import Blob "mo:base/Blob";
 import Hash "mo:base/Hash";
 import Order "mo:base/Order";
 
+import CRC32     "./utils/CRC32";
+import SHA224    "./utils/SHA224";
+import Account      "./utils/account";
+import Hex          "./utils/hex";
+import Utils      "./utils/utils";
+
 import Http "./http";
 import HttpTypes "./http/types";
 
@@ -50,6 +56,10 @@ shared (install) actor class Ledger() = this {
   var private_sale_whitelist = HashMap.HashMap<Principal, WL>(0, Principal.equal, Principal.hash);
 
   stable var private_sale_price = 0; //of ICP
+  
+  stable var private_sale_account = "";
+  stable var public_sale_account = "";
+
 
   stable var _admins: [Principal] = [];
   var admins : List.List<Principal> = List.fromArray(_admins);
@@ -145,13 +155,79 @@ shared (install) actor class Ledger() = this {
   // };
   
   public shared({caller}) func distribute(orderid: Nat): async Result.Result<Nat, Text>{
-    //check deposit
-
-
-    //distribute
-
-
-    #ok(1)
+    if(Principal.isAnonymous(caller)){
+      #err("no authenticated")
+    }else{
+       //check deposit
+      let order = await escrow.getOrder(orderid);
+      switch(order){
+        case(?order){
+          if(order.buyer == caller){
+            let balance = await escrow.accountBalance(order.account.id, #ICP);
+            switch(balance){
+              case(#e8s(a)){
+                if(a >= order.amount){
+                  
+                  let res = await icet.transfer(
+                    { 
+                    to = #principal(order.buyer);
+                    token = ICET;
+                    notify = false;
+                    from = #principal(getPrincipal());
+                    memo = Blob.toArray(Text.encodeUtf8(order.memo));
+                    subaccount = ?Blob.toArray(Utils.subToSubBlob(1));
+                    amount = Nat64.toNat(order.amount);
+                    }
+                  );
+                  switch(res){
+                    case(#ok(r)){
+                      await escrow.deliver(orderid);
+                      
+                    };
+                    case(#err(e)){
+                      switch(e){
+                          case(#CannotNotify(e)){
+                                #err("CannotNotify");
+                            };
+                            case(#InsufficientBalance){
+                                #err("InsufficientBalance")
+                            };
+                            case(#InvalidToken(e)){
+                                #err("InvalidToken")
+                            };
+                            case(#Rejected){
+                                #err("Rejected")
+                            };
+                            case(#Unauthorized(e)){
+                                #err("Unauthorized")
+                            };
+                            case(#Other(o)){
+                                #err(o)
+                            };
+                        }
+                    }
+                  };
+                }else if(a == 0){
+                  #err("no deposit");
+                }else{
+                  #err("deposit amount is less than order amount")
+                };
+              };
+              case(_){
+                #err("balance is not right")
+              };
+            };
+          }else{
+            #err("no permission")
+          };
+          
+        };
+        case(_){
+          #err("no order found");
+        };
+      };
+    }   
+    
   };
 
   public shared({caller}) func release(orderid: Nat) : async Result.Result<Nat, Text>{
