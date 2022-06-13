@@ -154,15 +154,31 @@ shared (install) actor class Ledger() = this {
   //    }
   // };
   
+  public shared({caller}) func fetchOrders(): async [EscrowTypes.Order]{
+    if(_isAdmin(caller)){
+      await escrow.getOrders();
+    }else{
+      []
+    }
+  };
+  
+  public shared({caller}) func claimFund(orderid: Nat): async Result.Result<Nat, Text>{
+    if(_isAdmin(caller)){
+      await escrow.release(orderid);
+    }else{
+      #err("no permission")
+    }
+  };
+
   public shared({caller}) func distribute(orderid: Nat): async Result.Result<Nat, Text>{
-    if(Principal.isAnonymous(caller)){
-      #err("no authenticated")
+    if(not _isAdmin(caller)){
+      #err("no permission")
     }else{
        //check deposit
       let order = await escrow.getOrder(orderid);
       switch(order){
         case(?order){
-          if(order.buyer == caller){
+
             let balance = await escrow.accountBalance(order.account.id, #ICP);
             switch(balance){
               case(#e8s(a)){
@@ -217,9 +233,7 @@ shared (install) actor class Ledger() = this {
                 #err("balance is not right")
               };
             };
-          }else{
-            #err("no permission")
-          };
+       
           
         };
         case(_){
@@ -231,7 +245,7 @@ shared (install) actor class Ledger() = this {
   };
 
   public shared({caller}) func release(orderid: Nat) : async Result.Result<Nat, Text>{
-    #ok(1)
+    await escrow.release(orderid);
   };
 
   //---------------------public sale---------------------------
@@ -245,6 +259,12 @@ shared (install) actor class Ledger() = this {
   func getPrincipal () : Principal {
       return Principal.fromActor(this);
   };
+
+  public query func getAccountId(sub: Nat): async Text{
+      let sublob = Utils.subToSubBlob(sub);
+        Utils.accountIdToHex(Account.accountIdentifier(getPrincipal(), sublob));
+  };
+
 
   func _isAdmin(user: Principal) : Bool{
     let fallow = Array.find<Principal>(List.toArray(admins), func(a){
