@@ -43,9 +43,9 @@ shared (install) actor class Ledger() = this {
   let icet : TokenTypes.Self = actor "ot4zw-oaaaa-aaaag-qabaa-cai";
   let escrow : EscrowTypes.Self = actor "oslfo-7iaaa-aaaag-qakra-cai";
 
-  let RESERVE_SUBACCOUNT = 1;
-  let PRIVATE_SALE_SUBACCOUNT = 2;
-  let PUBLIC_SALE_SUBACCOUNT = 3;
+  // let RESERVE_SUBACCOUNT = 1;
+  let PRIVATE_SALE_SUBACCOUNT = 1;
+  let PUBLIC_SALE_SUBACCOUNT = 2;
 
   type WL = {
     id: Principal;
@@ -170,7 +170,7 @@ shared (install) actor class Ledger() = this {
     }
   };
 
-  public shared({caller}) func distribute(orderid: Nat): async Result.Result<Nat, Text>{
+  public shared({caller}) func distribute(orderid: Nat, icets: Nat): async Result.Result<Nat, Text>{
     if(not _isAdmin(caller)){
       #err("no permission")
     }else{
@@ -183,16 +183,16 @@ shared (install) actor class Ledger() = this {
             switch(balance){
               case(#e8s(a)){
                 if(a >= order.amount){
-                  
+                  let address = await getAccountId(PRIVATE_SALE_SUBACCOUNT);
                   let res = await icet.transfer(
                     { 
                     to = #principal(order.buyer);
                     token = ICET;
                     notify = false;
-                    from = #principal(getPrincipal());
+                    from = #address(address);
                     memo = Blob.toArray(Text.encodeUtf8(order.memo));
-                    subaccount = ?Blob.toArray(Utils.subToSubBlob(1));
-                    amount = Nat64.toNat(order.amount);
+                    subaccount = ?Blob.toArray(Utils.subToSubBlob(PRIVATE_SALE_SUBACCOUNT));
+                    amount = icets ;// Nat64.toNat(order.amount);
                     }
                   );
                   switch(res){
