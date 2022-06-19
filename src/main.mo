@@ -162,6 +162,14 @@ shared (install) actor class Ledger() = this {
     }
   };
   
+  public shared({caller}) func fetchAllOrders(page: Nat): async [EscrowTypes.Order]{
+    if(_isAdmin(caller)){
+      await escrow.getAllOrders(page);
+    }else{
+      []
+    }
+  };
+
   public shared({caller}) func claimFund(orderid: Nat): async Result.Result<Nat, Text>{
     if(_isAdmin(caller)){
       await escrow.release(orderid);
