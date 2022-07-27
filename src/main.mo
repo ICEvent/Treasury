@@ -96,6 +96,7 @@ shared (install) actor class Ledger() = this {
   };
   //-------------------private sale--------------------------
   public shared({caller}) func setPrice(price: Nat): async (){
+    assert(caller == install.caller);
     private_sale_price := price;
   };
 
@@ -113,18 +114,19 @@ shared (install) actor class Ledger() = this {
     amount: Nat;
     price: Nat;
   }{
-    let wl = private_sale_whitelist.get(caller);    
-    switch(wl){
-      case(?wl){
-        ?{
-          amount = wl.amount;
-          price= private_sale_price;
-        }
-      };
-      case(_){
-        null
-      };
-    };
+    null;  //disable sale
+    // let wl = private_sale_whitelist.get(caller);    
+    // switch(wl){
+    //   case(?wl){
+    //     ?{
+    //       amount = wl.amount;
+    //       price= private_sale_price;
+    //     }
+    //   };
+    //   case(_){
+    //     null
+    //   };
+    // };
   };
 
   // public shared({caller}) func mint(): async Result.Result<Nat, Text>{
@@ -252,13 +254,76 @@ shared (install) actor class Ledger() = this {
     
   };
 
-  public shared({caller}) func release(orderid: Nat) : async Result.Result<Nat, Text>{
-    await escrow.release(orderid);
+  public shared({caller}) func release(orderid: Nat) : async Result.Result<Nat, Text>{    
+    if(not _isAdmin(caller)){
+      #err("no permission")
+    }else{
+      await escrow.release(orderid);
+    };
+    
   };
 
   //---------------------public sale---------------------------
 
 
+
+  // //--------------------- Bounty ------------------------------
+
+  // public shared({caller}) func createBounty(newOrder: EscrowTypes.NewOrder): async Result.Result<Nat, Text>{
+  //   if(not _isAdmin(caller)){
+  //     #err("no permission")
+  //   }else{
+  //     await escrow.create(newOrder);
+  //   };
+  // };
+
+
+  // ----------------------- Reward ------------------------------
+  public shared({caller}) func sendReward(to: Principal, amount: Nat): async Result.Result<Nat, Text>{
+    if(_isAdmin(caller)){
+      let account = await getAccountId(0);
+      let res = await icet.transfer(
+              { 
+              to = #principal(to);
+              token = ICET;
+              notify = false;
+              from = #address(account);
+              memo = Blob.toArray(Text.encodeUtf8("reward"));
+              subaccount = ?[];
+              amount = amount * 1000000;// Nat64.toNat(order.amount);
+              }
+          );
+      switch(res){
+        case(#ok(balance)){
+          #ok(balance)
+        };
+        case(#err(e)){
+                      switch(e){
+                          case(#CannotNotify(e)){
+                                #err("CannotNotify");
+                            };
+                            case(#InsufficientBalance){
+                                #err("InsufficientBalance")
+                            };
+                            case(#InvalidToken(e)){
+                                #err("InvalidToken")
+                            };
+                            case(#Rejected){
+                                #err("Rejected")
+                            };
+                            case(#Unauthorized(e)){
+                                #err("Unauthorized")
+                            };
+                            case(#Other(o)){
+                                #err(o)
+                            };
+                        }
+                    };
+      }
+    }else{
+      #err("no permission")
+    }
+  };
 
   //---------------------data--------------------------------
 
