@@ -20,7 +20,7 @@ import Buffer "mo:base/Buffer";
 import Blob "mo:base/Blob";
 import Hash "mo:base/Hash";
 
-import Error        "mo:base/Error";
+import Error "mo:base/Error";
 import Order "mo:base/Order";
 
 import CRC32 "./utils/CRC32";
@@ -94,6 +94,12 @@ shared (install) actor class Ledger() = this {
     } else {
       #err("no permission");
     };
+  };
+
+  public query ({ caller }) func getAdmins() : async [Principal] {
+    if (_isAdmin(caller)) {
+      List.toArray(admins);
+    } else { [] };
   };
   //-------------------private sale--------------------------
   public shared ({ caller }) func setPrice(price : Nat) : async () {
